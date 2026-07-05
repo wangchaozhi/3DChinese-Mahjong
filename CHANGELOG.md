@@ -5,6 +5,8 @@
 ## Unreleased
 
 - 新增 GitHub Actions 多平台验证、导出与自动发布流程。
+- 新增 macOS、iOS、Android release 构建入口，其中移动与 Apple 平台默认允许失败并保留日志。
+- iOS release 默认上传 Xcode 工程包，并在签名资料可用时尝试生成 IPA 资产。
 - Release 资产会包含产品更新日志，并保留各平台导出日志便于排查。
 
 ## v0.1.0

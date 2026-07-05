@@ -110,7 +110,9 @@ def build_document(tag: str, source_changelog: Path) -> str:
 			"## 构建说明",
 			"",
 			"- Windows 与 Linux 是必需发布构建。",
-			"- Web 是允许失败的补充平台；如果 release 中缺少该资产，请查看同名构建日志。",
+			"- Web、macOS、Android 与 iOS 是允许失败的补充平台；如果 release 中缺少某个平台资产，请查看同名构建日志。",
+			"- macOS 默认使用 Godot 内置 ad-hoc 签名；iOS 默认导出 Xcode 工程包，并在签名资料可用时尝试生成 IPA。",
+			"- Godot 4.7 的 iOS 模拟器只支持 Compatibility renderer；本项目当前使用 Mobile renderer，因此 CI 不默认生成模拟器包。",
 			"- 每个平台压缩包内都包含本文件，release 资产区也会单独附带一份产品更新日志。",
 		]
 	)
