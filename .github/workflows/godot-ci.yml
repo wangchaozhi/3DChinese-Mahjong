@@ -144,7 +144,13 @@ jobs:
         run: |
           set -euo pipefail
           export PATH="${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/cmdline-tools/tools/bin:${ANDROID_HOME}/platform-tools:${PATH}"
+          set +o pipefail
           yes | sdkmanager --licenses >/dev/null
+          license_status="${PIPESTATUS[1]}"
+          set -o pipefail
+          if [ "${license_status}" -ne 0 ]; then
+            exit "${license_status}"
+          fi
           sdkmanager \
             "platform-tools" \
             "build-tools;35.0.1" \
