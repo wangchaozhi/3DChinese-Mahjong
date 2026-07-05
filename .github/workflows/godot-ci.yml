@@ -1,0 +1,211 @@
+name: Godot CI
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GODOT_VERSION: "4.7"
+  GODOT_STATUS: stable
+  GODOT_VERSION_DIR: "4.7.stable"
+  GODOT_DOWNLOAD_BASE: https://github.com/godotengine/godot-builds/releases/download/4.7-stable
+  PRODUCT_SLUG: 3d-chinese-mahjong
+
+jobs:
+  validate:
+    name: Validate project
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Godot
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --retry-delay 2 "${GODOT_DOWNLOAD_BASE}/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64.zip" -o godot.zip
+          unzip -q godot.zip -d godot-bin
+          mv godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 godot
+          chmod +x godot
+
+      - name: Show Godot version
+        run: ./godot --version
+
+      - name: Import and parse scripts
+        run: ./godot --headless --path . --import --quit-after 2
+
+      - name: Autoplay regression
+        run: MJ_AUTOPLAY=1 ./godot --headless --path . --quit-after 200000
+
+  export-release:
+    name: Export ${{ matrix.name }}
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    needs: validate
+    timeout-minutes: 20
+    continue-on-error: ${{ matrix.allow_failure }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            preset: Windows Desktop
+            export_path: build/windows/3DChineseMahjong.exe
+            package_suffix: windows-x86_64
+            allow_failure: false
+          - name: Linux
+            preset: Linux/X11
+            export_path: build/linux/3DChineseMahjong.x86_64
+            package_suffix: linux-x86_64
+            allow_failure: false
+          - name: Web
+            preset: Web
+            export_path: build/web/index.html
+            package_suffix: web
+            allow_failure: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Godot and export templates
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --retry-delay 2 "${GODOT_DOWNLOAD_BASE}/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64.zip" -o godot.zip
+          unzip -q godot.zip -d godot-bin
+          mv godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 godot
+          chmod +x godot
+
+          curl --fail --location --retry 3 --retry-delay 2 "${GODOT_DOWNLOAD_BASE}/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_export_templates.tpz" -o export_templates.tpz
+          mkdir -p "${HOME}/.local/share/godot/export_templates/${GODOT_VERSION_DIR}"
+          mkdir -p /tmp/godot-export-templates
+          unzip -q export_templates.tpz -d /tmp/godot-export-templates
+          if [ -d /tmp/godot-export-templates/templates ]; then
+            cp -r /tmp/godot-export-templates/templates/. "${HOME}/.local/share/godot/export_templates/${GODOT_VERSION_DIR}/"
+          else
+            cp -r /tmp/godot-export-templates/. "${HOME}/.local/share/godot/export_templates/${GODOT_VERSION_DIR}/"
+          fi
+
+      - name: Show Godot version
+        run: ./godot --version
+
+      - name: Generate product changelog
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/make_release_changelog.py \
+            --tag "${GITHUB_REF_NAME}" \
+            --output build/release-info/PRODUCT_CHANGELOG.md \
+            --release-notes build/release-info/RELEASE_NOTES.md
+
+      - name: Export and package ${{ matrix.name }}
+        run: |
+          set -euo pipefail
+          SAFE_TAG="$(printf '%s' "${GITHUB_REF_NAME}" | tr '/ ' '--' | tr -cd 'A-Za-z0-9._-')"
+          EXPORT_DIR="$(dirname "${{ matrix.export_path }}")"
+          LOG_PATH="dist/${PRODUCT_SLUG}-${SAFE_TAG}-${{ matrix.package_suffix }}.log"
+          PACKAGE_PATH="dist/${PRODUCT_SLUG}-${SAFE_TAG}-${{ matrix.package_suffix }}.zip"
+          mkdir -p "${EXPORT_DIR}" dist
+
+          {
+            echo "Tag: ${GITHUB_REF_NAME}"
+            echo "Preset: ${{ matrix.preset }}"
+            echo "Export path: ${{ matrix.export_path }}"
+            echo "Allow failure: ${{ matrix.allow_failure }}"
+            echo
+            echo "Godot version:"
+            ./godot --version
+            echo
+            echo "Importing resources..."
+            ./godot --headless --path . --import --quit-after 2
+            echo
+            echo "Exporting ${{ matrix.name }}..."
+            ./godot --headless --path . --export-release "${{ matrix.preset }}" "${{ matrix.export_path }}"
+            if [ "${{ matrix.name }}" = "Linux" ]; then
+              chmod +x "${{ matrix.export_path }}"
+            fi
+            cp build/release-info/PRODUCT_CHANGELOG.md "${EXPORT_DIR}/PRODUCT_CHANGELOG.md"
+            cp build/release-info/RELEASE_NOTES.md "${EXPORT_DIR}/RELEASE_NOTES.md"
+            echo
+            echo "Exported files:"
+            find "${EXPORT_DIR}" -maxdepth 2 -type f -print | sort
+            echo
+            echo "Packaging ${PACKAGE_PATH}..."
+            (cd "${EXPORT_DIR}" && zip -qr "${GITHUB_WORKSPACE}/${PACKAGE_PATH}" .)
+            echo "Packaged ${PACKAGE_PATH}"
+          } 2>&1 | tee "${LOG_PATH}"
+
+      - name: Upload ${{ matrix.name }} package and log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PRODUCT_SLUG }}-${{ matrix.package_suffix }}-build
+          path: dist/${{ env.PRODUCT_SLUG }}-*
+          if-no-files-found: warn
+
+  release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    needs: export-release
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download exported packages and logs
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate release notes asset
+        run: |
+          set -euo pipefail
+          SAFE_TAG="$(printf '%s' "${GITHUB_REF_NAME}" | tr '/ ' '--' | tr -cd 'A-Za-z0-9._-')"
+          mkdir -p release-assets
+          python3 scripts/ci/make_release_changelog.py \
+            --tag "${GITHUB_REF_NAME}" \
+            --output "release-assets/PRODUCT_CHANGELOG-${SAFE_TAG}.md" \
+            --release-notes release-notes.md
+
+      - name: List release assets
+        run: find release-assets -maxdepth 2 -type f -print | sort
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          assets=(release-assets/*)
+          if [ "${#assets[@]}" -eq 0 ]; then
+            echo "No release assets were produced."
+            exit 1
+          fi
+
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release edit "${GITHUB_REF_NAME}" \
+              --title "${GITHUB_REF_NAME}" \
+              --notes-file release-notes.md
+          else
+            gh release create "${GITHUB_REF_NAME}" \
+              --title "${GITHUB_REF_NAME}" \
+              --notes-file release-notes.md
+          fi
+
+          gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber

@@ -1,3 +1,11 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# Local and CI export outputs
+/build/
+/dist/
+/release-assets/
+
+# Godot export credentials should stay local.
+export_credentials.cfg
