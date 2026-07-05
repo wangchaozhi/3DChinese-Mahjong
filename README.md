@@ -100,4 +100,4 @@ Windows 和 Linux 是必需构建，失败会阻止发布。Web、macOS、Androi
 
 ## 许可证
 
-当前仓库尚未声明开源许可证。正式复用、分发或二次开发前，请先补充 LICENSE 文件。
+本项目使用 [MIT License](LICENSE) 开源。
