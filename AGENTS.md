@@ -7,7 +7,7 @@
 - 完整可玩的 3D 中国麻将:136 张牌,人类(座位 0)+ 3 个 AI,支持吃/碰/明杠/暗杠/补杠/抢杠胡/自摸/点炮/流局,按番计分跨局累计。
 - Godot **4.7 stable**,**Mobile** 渲染器,D3D12,Jolt 物理,窗口 1600×900。
 - **整个游戏(3D 场景、UI、音效)全部由代码构建**。[scenes/main.tscn](scenes/main.tscn) 刻意只有一个挂 `main.gd` 的根节点——不要往 tscn 里加节点,一切改动都在 GDScript 里做。
-- 无外部资源:牌面是 Label3D 汉字(系统微软雅黑),音效由 `sfx.gd` 启动时程序化合成。
+- 无外部美术资源:牌面是 Label3D 汉字(桌面用系统微软雅黑,Web 用内置的 `fonts/cjk_subset.ttf` 子集字体),音效由 `sfx.gd` 启动时程序化合成。
 
 ## 环境与命令
 
@@ -77,5 +77,5 @@ PowerShell 设环境变量:`$env:MJ_AUTOPLAY='1'`;bash:`MJ_AUTOPLAY=1 godot ...`
 ## 其他事实
 
 - 项目当前**不是 git 仓库**;需要提交历史请先 `git init`。
-- 字体依赖 Windows 系统微软雅黑(SystemFont 回退链);导出到其他平台需自带 CJK 字体文件并替换 `main._load_font()`。
+- 字体:桌面端用 SystemFont 回退链(微软雅黑优先),缺字回退到 `fonts/cjk_subset.ttf`;Web 端读不到系统字体,直接用该子集字体。子集只含 `scripts/*.gd` 字符串里出现的字,**新增中文文案后要重跑 `python tools/build_cjk_font.py <NotoSansSC.ttf>`**,否则 Web 版新字会显示为方框。
 - `MJ_AUTOPLAY=1` 同时会把 `Engine.time_scale` 设为 20 并在 6 局后 `quit()`——正常游玩不受影响。

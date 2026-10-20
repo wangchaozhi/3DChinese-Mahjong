@@ -62,9 +62,17 @@ func _ready() -> void:
 
 
 func _load_font() -> void:
+	# 浏览器读不到系统字体:Web 版直接用内置中文子集字体(tools/build_cjk_font.py 生成),
+	# 桌面端仍优先系统字体,缺字时回退到内置字体。
+	var embedded: Font = load("res://fonts/cjk_subset.ttf")
+	if OS.has_feature("web"):
+		cn_font = embedded
+		return
 	var sf := SystemFont.new()
 	sf.font_names = PackedStringArray(
 		["Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "Noto Sans CJK SC", "sans-serif"])
+	var fallbacks: Array[Font] = [embedded]
+	sf.fallbacks = fallbacks
 	cn_font = sf
 
 

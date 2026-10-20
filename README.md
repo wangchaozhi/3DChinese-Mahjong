@@ -10,7 +10,7 @@
 - 支持吃、碰、明杠、暗杠、补杠、抢杠胡、自摸、点炮和流局。
 - 内置番型与零和计分，支持多局累计分数。
 - AI 使用向听数搜索、弃牌价值评估和已见牌信息做决策。
-- 3D 场景、牌面、UI、音效全部由代码生成，无外部美术资源依赖。
+- 3D 场景、牌面、UI、音效全部由代码生成，无外部美术资源依赖（仅为 Web 版内置一份约 92 KB 的中文子集字体）。
 - GitHub Actions 自动验证并在 tag 时导出 Windows、Linux、Web、macOS、Android、iOS 资产。
 
 ## 下载
@@ -88,6 +88,8 @@ Windows 和 Linux 是必需构建，失败会阻止发布。Web、macOS、Androi
 | `scripts/main.gd` | 3D 场景、UI、输入、音频和视觉布局 |
 | `scripts/tile_node.gd` | 单张 3D 牌节点 |
 | `scripts/sfx.gd` | 程序化音效合成 |
+| `fonts/cjk_subset.ttf` | Web 版用的中文子集字体（Noto Sans SC，OFL 协议） |
+| `tools/build_cjk_font.py` | 重新生成子集字体的脚本 |
 | `scenes/main.tscn` | 极简主场景，只挂载 `main.gd` |
 | `docs/ARCHITECTURE.md` | 详细架构、数据模型和算法说明 |
 | `docs/RELEASE.md` | CI 发布、签名和 release 资产说明 |
@@ -96,8 +98,13 @@ Windows 和 Linux 是必需构建，失败会阻止发布。Web、macOS、Androi
 
 本项目刻意保持 `scenes/main.tscn` 只有一个根节点，牌桌、牌、UI 和音效都在 GDScript 中构建。游戏逻辑层不依赖 3D 或 UI；`main.gd` 只负责展示状态、接收输入并调用 `game.submit()`。
 
-当前牌面使用系统字体显示中文。Windows 下会优先使用微软雅黑；导出到其他平台时，如遇中文字体缺失，建议加入自带 CJK 字体并替换字体加载逻辑。
+桌面版优先使用系统中文字体（Windows 下为微软雅黑），缺字时回退到内置的 `fonts/cjk_subset.ttf`；浏览器读不到系统字体，Web 版直接使用内置字体。子集只包含脚本字符串里用到的字，新增中文文案后需要重新生成：
+
+```powershell
+pip install fonttools
+python tools/build_cjk_font.py <NotoSansSC 字体文件>
+```
 
 ## 许可证
 
-本项目使用 [MIT License](LICENSE) 开源。
+本项目使用 [MIT License](LICENSE) 开源。内置字体 Noto Sans SC 使用 [SIL Open Font License 1.1](fonts/OFL.txt)。
